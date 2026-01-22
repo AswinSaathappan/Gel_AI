@@ -3,13 +3,14 @@ from flask_cors import CORS
 import base64
 import numpy as np
 import cv2
+import os
 
 from utils.image_processing import process_image
 from utils.anomaly_detection import detect_anomaly
 
 app = Flask(__name__)
 
-# ✅ ALLOW ALL ORIGINS (DEV MODE – SAFE FOR PROJECT)
+# ✅ Allow all origins (Hackathon / Dev safe)
 CORS(app)
 
 THRESHOLD = 0.05
@@ -23,23 +24,28 @@ def decode_base64_image(data):
     return img
 
 
+# ✅ Health check endpoint (VERY IMPORTANT for Nimbuz)
+@app.route("/health", methods=["GET"])
+def health():
+    return "OK", 200
+
+
 @app.route("/analyze", methods=["POST", "OPTIONS"])
 def analyze():
     if request.method == "OPTIONS":
-        # ✅ THIS FIXES PREFLIGHT
+        # ✅ Fixes CORS preflight
         return "", 200
 
     try:
         data = request.get_json()
         image_base64 = data.get("image")
 
-        if image_base64 is None:
+        if not image_base64:
             return jsonify({"error": "No image received"}), 400
 
         img = decode_base64_image(image_base64)
 
         gray, denoised, edges, bands = process_image(img)
-
         error, recon, heatmap = detect_anomaly(bands)
 
         result = "Anomalous" if error > THRESHOLD else "Normal"
@@ -56,4 +62,6 @@ def analyze():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # ✅ MUST for cloud platforms
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
